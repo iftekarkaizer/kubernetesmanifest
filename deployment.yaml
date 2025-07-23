@@ -1,7 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  creationTimestamp: null
   labels:
     app: flaskdemo
   name: flaskdemo
@@ -10,18 +9,17 @@ spec:
   selector:
     matchLabels:
       app: flaskdemo
-  strategy: {}
   template:
     metadata:
-      creationTimestamp: null
       labels:
         app: flaskdemo
     spec:
       containers:
-      - image: iftekar/test:13
-        name: flaskdemo
-        resources: {}
-status: {}
+      - name: flaskdemo
+        image: iftekar/test:13   # <-- Update via CI/CD
+        ports:
+        - containerPort: 5000
+        resources: {}  # You can remove or define CPU/memory limits here
 ---
 apiVersion: v1
 kind: Service
