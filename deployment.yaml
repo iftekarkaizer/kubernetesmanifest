@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: flaskdemo
-        image: iftekar/test:13   # <-- Update via CI/CD
+        image: iftekar/test:16
         ports:
         - containerPort: 5000
         resources: {}  # You can remove or define CPU/memory limits here
