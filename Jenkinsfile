@@ -1,42 +1,51 @@
-node {
-    def app
+pipeline {
+    agent any
 
-    stage('Clone repository') {
-        checkout scm
+    environment {
+        DOCKERTAG = "${env.BUILD_NUMBER}"  // or another tag strategy
+        IMAGE_NAME = "iftekar/test"
+        GITHUB_REPO = "iftekarkaizer/kubernetesmanifest.git"
+        GIT_CREDENTIALS_ID = 'github' // your Jenkins GitHub credentials ID
+        DOCKER_CREDENTIALS_ID = 'dockerhub' // your Docker Hub credentials ID
     }
 
-    stage('Update GIT') {
-        script {
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                withCredentials([usernamePassword(credentialsId: 'github', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
-                    sh """
-                        echo "⚙️ Configuring Git..."
-                        git config user.email "kaizeriftekar@gmail.com"
-                        git config user.name "iftekarkaizer"
+    stages {
+        stage('Clone repository') {
+            steps {
+                checkout scm
+            }
+        }
 
-                        echo "📌 Switching to main branch..."
-                        git checkout main
+        stage('Build Docker image') {
+            steps {
+                script {
+                    docker.withRegistry('', "${DOCKER_CREDENTIALS_ID}") {
+                        def image = docker.build("${IMAGE_NAME}:${DOCKERTAG}")
+                        image.push()
+                    }
+                }
+            }
+        }
 
-                        echo "⬇️ Pulling latest changes..."
-                        git pull origin main --rebase
-
-                        echo "🔍 Current deployment.yaml content:"
-                        cat deployment.yaml
-
-                        echo "🛠️ Updating image tag to: ${DOCKERTAG}"
-                        sed -i 's|iftekar/test:.*|iftekar/test:${DOCKERTAG}|' deployment.yaml
-
-                        echo "📄 Updated deployment.yaml:"
-                        cat deployment.yaml
-
-                        git add deployment.yaml
-                        git commit -m "✅ Jenkins updated image tag to ${DOCKERTAG} in build #${BUILD_NUMBER}" || echo 'ℹ️ No changes to commit'
-
-                        echo "🚀 Pushing changes to GitHub..."
-                        git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/${GIT_USERNAME}/kubernetesmanifest.git HEAD:main
-                    """
+        stage('Update deployment.yaml and push') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: "${GIT_CREDENTIALS_ID}", usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+                        sh """
+                            git config user.email "kaizeriftekar@gmail.com"
+                            git config user.name "iftekarkaizer"
+                            git checkout main
+                            git pull origin main --rebase
+                            sed -i 's|${IMAGE_NAME}:.*|${IMAGE_NAME}:${DOCKERTAG}|' deployment.yaml
+                            git add deployment.yaml
+                            git commit -m "Jenkins: Update image tag to ${DOCKERTAG} (build #${env.BUILD_NUMBER})" || echo "No changes to commit"
+                            git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/${GIT_USERNAME}/${GITHUB_REPO} HEAD:main
+                        """
+                    }
                 }
             }
         }
     }
 }
+
+
